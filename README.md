@@ -106,3 +106,6 @@ Each line is also printed to the elevated console. Look for the **Breakdown** ta
 - After a big Docker session that pulled lots of images.
 - After a Windows feature update (often leaves `$GetCurrent` behind).
 - Before a long task that will write a lot (CI build, large download, etc.).
+
+  ---
+  "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1
