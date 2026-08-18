@@ -16,3 +16,9 @@ git branch -m main
 
 # 6. Force-push (the old history is gone forever, but no one has the old clone yet since it's not public)
 git push --force-with-lease origin main
+
+# 7. Delete the remote clean-root ref (it's redundant)
+git push origin --delete clean-root
+
+# 8. Point local main at origin/main instead of origin/clean-root
+git branch --set-upstream-to=origin/main main
