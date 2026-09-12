@@ -1,13 +1,23 @@
 # reclaim-disk
 
-A single PowerShell script that reclaims space on the `C:` drive. Self-elevates, idempotent, safe defaults. Built from the three-stage cleanup we ran together — consolidated so you can run it yourself.
+A single PowerShell script that **analyses** and **reclaims** space on the `C:` drive. Self-elevates, idempotent, safe defaults.
+
+Two modes:
+
+| Mode | Command | Effect |
+| --- | --- | --- |
+| **Analyse** | `.\reclaim-disk.ps1 -Analyse` | Read-only. Works out where C: actually went and writes a `.md` + `.json` report. Changes nothing. |
+| **Clean** | `.\reclaim-disk.ps1` | Reclaims space: age-based Docker prune, `fstrim` + VHDX compaction, temp/cache clearing. |
 
 ## Quick start
 
-From any PowerShell prompt:
-
 ```powershell
-cd C:\Temp\reclaim-disk
+cd H:\code\yl\tool-snippets
+
+# First: find out where the space went
+.\reclaim-disk.ps1 -Analyse
+
+# Then: reclaim it
 .\reclaim-disk.ps1
 ```
 
@@ -19,93 +29,214 @@ If Windows blocks the script with "running scripts is disabled":
 Unblock-File .\reclaim-disk.ps1
 ```
 
-## What it does by default
+---
 
-These run every time, in order. All paths are derived from `%LOCALAPPDATA%` etc., so the script works on any user account.
+## Analyse mode
 
-| Step | Action                                                                                                                                                                                                                                                            | Safe? |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| A    | Clear`SquirrelTemp`, `npm-cache`, `uv`, `pip\Cache` under `%LOCALAPPDATA%`. Tools re-download on next use.                                                                                                                                              | yes   |
-| B    | Delete`C:\$GetCurrent` (Windows upgrade staging) if present.                                                                                                                                                                                                    | yes   |
-| F    | Shut down WSL + Docker Desktop and**compact** every `.vhdx` it finds under `%LOCALAPPDATA%\Docker` and `%LOCALAPPDATA%\wsl`. Compaction only returns *empty/slack* space — your Docker images, containers, volumes, and WSL distros remain intact. | yes   |
-| G    | Empty`%LOCALAPPDATA%\Temp`, preserving the `claude` subfolder.                                                                                                                                                                                                | yes   |
+`-Analyse` never writes to anything except its own report files. It produces:
 
-## Optional flags
+```
+reclaim-analysis_<timestamp>.md      human-readable tables
+reclaim-analysis_<timestamp>.json    same data, machine-readable
+reclaim_<timestamp>.log              full console transcript
+```
 
-These are off by default. Add them when you want more aggressive reclaim.
+### What it inventories
 
-| Flag                    | What it adds                                                                                                                   | Notes                                                                                                                                                                                                                          |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `-PruneDocker`        | Starts Docker Desktop, runs`docker system prune -af --volumes` and `docker builder prune -af` **before** compacting. | **Destructive.** Deletes every Docker image, container, network, anonymous volume, and build cache entry that isn't tied to a running container. Use when you want a big reclaim and accept you'll re-pull images later. |
-| `-DismCleanup`        | Runs`DISM /Online /Cleanup-Image /StartComponentCleanup /ResetBase`.                                                         | Cleans the WinSxS component store. Takes 5–15 minutes. After`/ResetBase`, you can no longer uninstall already-installed Windows updates.                                                                                    |
-| `-DisableHibernation` | Runs`powercfg /h off`.                                                                                                       | Deletes`C:\hiberfil.sys` (~RAM-sized: 8–64 GB). Only use if you don't rely on Hibernate or Fast Startup. Reversible with `powercfg /h on`.                                                                                |
-| `-SkipDocker`         | Skips both prune and compact entirely.                                                                                         | Use when Docker is busy or you've just used the script and only want the other cleanups.                                                                                                                                       |
-| `-DryRun`             | Reports what would be freed; touches nothing.                                                                                  | Recommended before the first run on a new machine. Compaction and DISM amounts are unknown until done — the rest is precise.                                                                                                  |
-| `-LogDir <path>`      | Where to write the timestamped log.                                                                                            | Default: alongside the script.                                                                                                                                                                                                 |
+| Section | Covers |
+| --- | --- |
+| Volumes | Every drive: total, free, free %. Includes H:, so you can see the headroom for moves. |
+| Windows consumers | `hiberfil.sys`, `pagefile.sys`, `Windows.old`, `$GetCurrent`, `$WinREAgent`, Recycle Bin, WinSxS, Windows Installer cache, Windows Update download cache, Delivery Optimization, CBS logs, memory dumps, Package Cache — each with the specific remedy. |
+| Virtual disks | Every `.vhdx` / `.vhd` / `.qcow2` / `.vmdk`, discovered from the **Lxss registry** (real WSL distro base paths) plus Docker, CRC, minikube and Hyper-V locations — not guessed from two hardcoded folders. |
+| Docker | `docker system df` inline; full `docker system df -v` (per-image, per-volume, per-build-cache-record) written to the log. |
+| Developer caches | ~50 known caches: npm, pnpm, yarn, pip, uv, poetry, conda, HuggingFace, torch, Ollama, Maven, Gradle, NuGet, Cargo, rustup, Go mod + build, Android SDK/AVD, Playwright, Puppeteer, Electron, Chocolatey, minikube, CRC, VS Code, Cursor, JetBrains, and more. Each tagged **regen** (safe to delete, tool re-downloads) or **data**. |
+| Largest directories | Top-N children of `C:\`, your profile, `LOCALAPPDATA`, `APPDATA`, `ProgramData`, both `Program Files`. |
+| Largest files | Every file over `-MinFileMB` (default 500 MB), sorted descending. |
+| Move to H: | Ranked list of relocatable caches with a suggested destination and **the env var that relocates each one**. |
+
+### Analyse flags
+
+| Flag | Effect |
+| --- | --- |
+| `-DeepScan` | Also size `C:\Windows` and scan the whole of `C:\` for large files. Adds several minutes. |
+| `-MinFileMB <n>` | Threshold for "largest files". Default 500. |
+| `-Top <n>` | Rows per table. Default 30. |
+
+Directory sizing uses `robocopy /L /S /XJ` rather than `Get-ChildItem -Recurse`. It is an order of magnitude faster, skips junctions (no infinite loops), and doesn't choke on permission-denied or long paths.
+
+> **WinSxS caveat:** the reported size of `C:\Windows\WinSxS` overstates real usage, because most of it is hardlinks into `C:\Windows\System32`. Treat it as an upper bound; only `-DismCleanup` tells you what's actually reclaimable.
+
+---
+
+## Clean mode
+
+### Runs every time
+
+| Step | Action | Safe? |
+| --- | --- | --- |
+| A | Clear `SquirrelTemp`, `npm-cache`, `uv`, `pip\Cache`, `Yarn\Cache`, `go-build`, `CrashDumps`, `electron-builder\Cache` under `%LOCALAPPDATA%`. Tools re-download on next use. | yes |
+| B | Delete `C:\$GetCurrent` and `C:\$WinREAgent` (Windows upgrade staging) if present. | yes |
+| G | **Docker prune, by age.** Removes build cache, images, stopped containers and unused networks that have been unused for more than `-PruneAgeDays` (default 14). Volumes are left alone. | yes |
+| H | **`fstrim` inside every WSL distro, then compact every `.vhdx`.** | yes |
+| I | Empty `%LOCALAPPDATA%\Temp` (preserving `claude`) and `C:\Windows\Temp`. | yes |
+
+### The fstrim step is the important one
+
+`diskpart compact vdisk` and `Optimize-VHD` can only reclaim blocks the **guest** filesystem has marked as discarded. Deleting a 40 GB image inside Docker frees those blocks in ext4 but the host has no idea — the `.vhdx` stays 40 GB larger.
+
+Real numbers from this machine, without fstrim:
+
+```
+docker_data.vhdx: 152.65 GB -> 150.88 GB (freed 1.77 GB)
+```
+
+That is 1.2%. The script now runs `fstrim -av` as root inside each distro **before** shutting WSL down and compacting, so the guest actually tells the host which blocks are free.
+
+If a large VHDX still barely shrinks after fstrim, the script flags it inline:
+
+```
+<-- barely shrank: the guest FS is genuinely full, prune inside it
+```
+
+That means the space really is in use by images/layers/volumes, and you need a harder prune (`-PruneAgeDays 3`, or `-FullPrune`), not more compaction.
+
+### Docker prune: age-based by default
+
+| Flag | Effect |
+| --- | --- |
+| *(default)* | `builder prune`, `image prune`, `container prune` filtered to `until=<PruneAgeDays*24>h`, plus `network prune`. Anything you've touched in the last 14 days survives. |
+| `-PruneAgeDays <n>` | Change the horizon. `7` is a reasonable weekly cadence; `3` before a big build. |
+| `-PruneVolumes` | Also `docker volume prune -af`. **Destroys volume data** — databases, named caches. Off by default. |
+| `-FullPrune` | Legacy behaviour: `docker system prune -af --volumes`. Ignores the age filter. Removes everything not attached to a running container. |
+| `-NoPrune` | Skip pruning entirely; still fstrim + compact. |
+| `-SkipDocker` | Don't touch Docker or WSL at all. |
+| `-SkipTrim` | Skip fstrim. Not recommended — compaction will reclaim almost nothing. |
+
+### Other optional flags
+
+| Flag | Effect | Notes |
+| --- | --- | --- |
+| `-DismCleanup` | `DISM /Online /Cleanup-Image /StartComponentCleanup /ResetBase` | 5–15 min. Afterwards you can no longer uninstall already-installed Windows updates. |
+| `-WindowsUpdateCache` | Stops `wuauserv`/`bits`/`dosvc`, clears `SoftwareDistribution\Download`, restarts them | Windows re-downloads anything it still needs. |
+| `-EmptyRecycleBin` | `Clear-RecycleBin -DriveLetter C` | Permanent. |
+| `-DisableHibernation` | `powercfg /h off` | Deletes `hiberfil.sys` (~75% of RAM). Reversible with `powercfg /h on`. |
+| `-DryRun` | Reports what clean mode would do; touches nothing | Docker prune amounts aren't included in the estimate. |
+| `-LogDir <path>` | Where to write log + reports | Default: alongside the script. |
+
+---
 
 ## Examples
 
 ```powershell
-# See what would happen — touch nothing
-.\reclaim-disk.ps1 -DryRun
+# Where did my C: go?
+.\reclaim-disk.ps1 -Analyse
 
-# Default safe cleanup
+# Same, but include C:\Windows and every file over 200 MB
+.\reclaim-disk.ps1 -Analyse -DeepScan -MinFileMB 200
+
+# Safe cleanup (age-based prune + fstrim + compact)
 .\reclaim-disk.ps1
 
-# Big reclaim after Docker has accumulated junk
-.\reclaim-disk.ps1 -PruneDocker
+# Weekly cadence
+.\reclaim-disk.ps1 -PruneAgeDays 7
 
-# Everything: Docker prune + DISM + hibernation off
-.\reclaim-disk.ps1 -PruneDocker -DismCleanup -DisableHibernation
+# Emergency: drive nearly full
+.\reclaim-disk.ps1 -FullPrune -DismCleanup -WindowsUpdateCache -EmptyRecycleBin
+
+# Preview only
+.\reclaim-disk.ps1 -DryRun
 ```
 
-## What's in each stage (and why)
+---
 
-**[A] User caches** — These four folders are documented caches for npm, uv (Python), pip, and Squirrel (auto-updaters). Each grows over time and never shrinks on its own. Cleared safely; the tools repopulate them as you use them.
+## Moving caches to H:
 
-**[B] `C:\$GetCurrent`** — Leftover from a Windows feature update. Windows itself does not remove this. Often 3–5 GB.
+Analyse mode reports each relocatable cache with the env var that moves it. The pattern is always the same: move the folder, then set a **user** environment variable so the tool looks in the new place.
 
-**[C] Hibernation** *(optional)* — `hiberfil.sys` is sized at ~75% of installed RAM. Disabling hibernation deletes it. Skip this if you use Hibernate or Fast Startup.
+```powershell
+# Example: Ollama models
+robocopy "$env:USERPROFILE\.ollama\models" "H:\devcache\ollama-models" /E /MOVE /R:1 /W:1
+[Environment]::SetEnvironmentVariable('OLLAMA_MODELS','H:\devcache\ollama-models','User')
+```
 
-**[D] DISM `/ResetBase`** *(optional)* — Removes superseded Windows component-store files. After this you cannot uninstall already-installed Windows updates, which is usually fine.
+Common ones:
 
-**[E] Docker prune** *(optional)* — `docker system prune -af --volumes` plus `docker builder prune -af` deletes every Docker artifact that isn't currently in use. The 32 GB of internal Docker space that gets freed only returns to Windows after [F] compaction runs.
+| Cache | Env var |
+| --- | --- |
+| Ollama models | `OLLAMA_MODELS` |
+| HuggingFace | `HF_HOME` |
+| Maven repo | `-Dmaven.repo.local` in `MAVEN_OPTS`, or `<localRepository>` in `settings.xml` |
+| Gradle | `GRADLE_USER_HOME` |
+| Go modules | `GOMODCACHE` |
+| Go build cache | `GOCACHE` |
+| Cargo | `CARGO_HOME` |
+| rustup | `RUSTUP_HOME` |
+| NuGet | `NUGET_PACKAGES` |
+| pip | `PIP_CACHE_DIR` |
+| uv | `UV_CACHE_DIR` |
+| Playwright browsers | `PLAYWRIGHT_BROWSERS_PATH` |
+| Puppeteer | `PUPPETEER_CACHE_DIR` |
+| Android SDK | `ANDROID_SDK_ROOT` |
+| minikube | `MINIKUBE_HOME` |
 
-**[F] Compact `.vhdx`** — Docker Desktop and each WSL distro store their filesystem in a dynamic VHDX. The VHDX grows but never shrinks on its own. We shut down WSL + Docker, then call `diskpart compact vdisk` on each VHDX found. Empty/slack space is returned to the host drive; live data is untouched.
+Restart your shell (and any IDE) after setting a user env var.
 
-**[G] Temp** — `%LOCALAPPDATA%\Temp` regularly holds gigabytes of installer/runtime junk. The `claude` subfolder is preserved so Claude Code's task output isn't disrupted if you run this mid-session.
+### Moving Docker's disk image
+
+The biggest single win, and the one the script deliberately does **not** automate:
+
+1. Docker Desktop → Settings → Resources → Advanced → **Disk image location** → change to `H:\docker`.
+2. Docker restarts and migrates. Budget the current VHDX size in free space on H: during the move.
+
+For a WSL distro, `wsl --export <name> H:\wsl\<name>.tar` then `wsl --unregister <name>` then `wsl --import <name> H:\wsl\<name> H:\wsl\<name>.tar --version 2`. Verify the export before unregistering.
+
+---
 
 ## Logs
 
-Every run writes a timestamped log next to the script (or under `-LogDir`):
+Every run writes a timestamped log next to the script (or under `-LogDir`). Analyse mode adds the `.md` and `.json` reports.
+
+diskpart/DISM progress spam ("`n percent completed`" x 3000) is filtered out of the log — the previous version's logs were 90% noise.
+
+Suggested `.gitignore`:
 
 ```
-reclaim_20260623_143055.log
+*.log
+reclaim-analysis_*.md
+reclaim-analysis_*.json
 ```
 
-Each line is also printed to the elevated console. Look for the **Breakdown** table at the end for per-step reclaim.
+---
 
 ## Re-runnability notes
 
-- The script is idempotent. Re-running with the same flags is safe and just frees whatever has re-accumulated.
-- Paths are detected dynamically (`%LOCALAPPDATA%`, both `Program Files` locations, recursive `.vhdx` discovery). It survives Docker Desktop version upgrades that move the VHDX path.
-- If Docker isn't installed at all, `-PruneDocker` is silently skipped and the compact step finds zero `.vhdx` files. No errors.
-- The script writes nothing to the registry and does not change system settings — except when you explicitly pass `-DisableHibernation` or `-DismCleanup`.
+- Idempotent. Re-running with the same flags just frees whatever has re-accumulated.
+- Paths are detected dynamically. WSL distros come from `HKCU:\...\Lxss`, so it survives distro installs and Docker Desktop upgrades that move the VHDX.
+- If Docker isn't installed, the prune is skipped and the compact step finds zero `.vhdx`. No errors.
+- Compaction prefers `Optimize-VHD` (Hyper-V module) and falls back to `diskpart` if the module is missing or Hyper-V isn't enabled.
+- Writes nothing to the registry and changes no system settings — except with `-DisableHibernation`, `-DismCleanup`, or `-WindowsUpdateCache`.
 
 ## Things this script deliberately does NOT do
 
-- It will not touch `C:\Users\<you>\Downloads`, `Documents`, or anything in `Roaming`. Those are your files.
-- It will not uninstall programs.
-- It will not delete WSL distros or your data inside them.
-- It will not modify `pagefile.sys` (Windows-managed).
-- It will not run any web request, telemetry, or external command beyond `powercfg`, `dism`, `wsl`, `diskpart`, `docker`, `takeown`, and `icacls`.
+- Does not touch `Downloads`, `Documents`, or anything in `Roaming`. Those are your files.
+- Does not move anything to H: — analyse mode identifies candidates, you decide.
+- Does not uninstall programs.
+- Does not delete WSL distros or your data inside them.
+- Does not prune Docker volumes unless you pass `-PruneVolumes`.
+- Does not modify `pagefile.sys`.
+- Runs no web request or telemetry. External commands: `robocopy`, `powercfg`, `dism`, `wsl`, `diskpart`, `docker`, `takeown`, `icacls`.
 
 ## When to run it
 
-- Whenever C: free space drops below ~15%.
+- `-Analyse` whenever you're surprised by how full C: is.
+- Clean mode whenever C: free space drops below ~15%.
 - After a big Docker session that pulled lots of images.
 - After a Windows feature update (often leaves `$GetCurrent` behind).
-- Before a long task that will write a lot (CI build, large download, etc.).
 
-  ---
-  "C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1
+---
+
+## Appendix: Chrome remote debugging
+
+```
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --remote-debugging-port=9222 --remote-debugging-address=127.0.0.1
+```

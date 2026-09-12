@@ -1,1 +1,3 @@
-*.log
+reclaim*.log
+reclaim*.json
+reclaim*.md
