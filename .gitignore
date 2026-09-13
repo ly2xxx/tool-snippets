@@ -1,3 +1,5 @@
 reclaim*.log
 reclaim*.json
 reclaim*.md
+__pycache__/
+*.pyc

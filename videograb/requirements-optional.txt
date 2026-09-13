@@ -1,0 +1,8 @@
+# videograb runs on the Python 3.8+ standard library alone.
+# Everything here unlocks an optional capability; nothing here is required.
+
+playwright        # --browser and `login`: render JS pages, sniff media requests
+yt-dlp            # YouTube, Loom, Dailymotion and other signed platforms
+cryptography      # AES-128 HLS decryption without ffmpeg
+browser-cookie3   # --cookies-from-browser
+pyyaml            # YAML site profiles (JSON profiles work without it)

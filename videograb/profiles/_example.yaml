@@ -1,0 +1,46 @@
+# Annotated template - copy to ~/.config/videograb/profiles/<site>.yaml
+# (files starting with "_" are not loaded, so this one stays inert).
+#
+# Rules are additive. Every rule that matches contributes; rules that match
+# nothing are silently skipped. Start broad, then tighten.
+
+name: example-academy
+description: What this profile covers
+priority: 26              # lower runs earlier; built-ins sit at 20-61
+
+match:                    # ALL listed conditions must hold
+  hosts: [learn.example.com]          # exact host or any subdomain
+  host_patterns: ['^cdn\d+\.example\.com$']
+  url_patterns: ['/course/(\d+)']     # captures become {group1}, or use (?P<id>)
+  body_contains: ['data-player']      # cheap fingerprint for shared platforms
+
+headers:                  # sent on every request to matching hosts
+  X-Requested-With: XMLHttpRequest
+
+options:                  # merged into the run's options
+  course_min_links: 1
+  max_lessons: 0          # 0 = no limit
+
+follow:                   # -> more pages to visit
+  - selector: "a.lesson"                 # CSS subset: tag/#id/.class/[attr*=v]
+    attr: href                           # default: href/src/data-src/content
+    title: text                          # text | attr:NAME | page
+  - regex: '"lessonUrl":"([^"]+)"'       # capture group 1
+  - json:
+      markers: ['__NEXT_DATA__']         # narrow which script blobs to read
+      path: 'props.pageProps.lessons[*].slug'   # a.b[*].c, or **.key for deep
+      title: title                       # pair the url with a sibling key
+  - template: 'https://{host}/api/courses/{group1}/items'
+    kind: api                            # page | embed | manifest | api
+
+videos:                   # -> media URLs directly
+  - selector: "video source"
+    attr: src
+    kind: auto                           # auto | progressive | hls | dash | external
+  - regex: 'hlsUrl":"([^"]+)"'
+    kind: hls
+  - json:
+      path: '**.playback_url'
+    kind: hls
+    headers:                             # sent when downloading this media
+      Referer: https://learn.example.com/

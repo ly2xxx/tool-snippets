@@ -1,0 +1,72 @@
+# Whizlabs Business (Learnyst-hosted school)
+#
+#   https://business.whizlabs.com/learn/course/besa-generative-ai-labs-subscription/4418
+#
+# Honest status: this profile was written WITHOUT live access to the site
+# (the machine it was authored on could not reach that host), so the rules
+# below are deliberately broad and additive - each one is a "if this shape is
+# present, use it", and a rule that matches nothing costs nothing. Nothing
+# here fabricates an API endpoint.
+#
+# If a plain run comes up empty, that means the curriculum is rendered
+# client-side after login. Use the browser backend, which does not care:
+#
+#   python videograb.py extract <course-url> --browser --browser-login
+#
+# and once it works, tighten this profile with what the browser saw
+# (`--dump-network` prints every media request the page actually made).
+
+name: whizlabs
+description: Whizlabs Business / Learnyst course pages
+priority: 24
+
+match:
+  hosts:
+    - business.whizlabs.com
+    - www.whizlabs.com
+    - whizlabs.com
+  url_patterns:
+    - '/learn/course/([^/]+)/(\d+)'
+    - '/learn/(?:lesson|topic|content|video)/'
+
+# Learnyst front-ends talk to their backend with XHR headers; sending them on
+# normal page loads is harmless and occasionally returns the JSON variant.
+headers:
+  X-Requested-With: XMLHttpRequest
+
+options:
+  # A course page is authoritative: follow even a single lesson link.
+  course_min_links: 1
+  # Lesson players are one hop past the curriculum, embeds one more.
+  max_depth: 3
+
+follow:
+  # 1. Lesson links as rendered in the curriculum.
+  - selector: "a[href*='/learn/lesson/']"
+    title: text
+  - selector: "a[href*='/learn/topic/']"
+    title: text
+  - selector: "a[href*='/learn/content/']"
+    title: text
+  # 2. Lesson links that only exist inside the bootstrapped state blob.
+  - json:
+      markers: ['__INITIAL_STATE__', 'window.__NST', 'lstAppData', 'courseData']
+      path: '**.lessons[*].url'
+    title: text
+  - json:
+      markers: ['__INITIAL_STATE__', 'window.__NST', 'lstAppData', 'courseData']
+      path: '**.topics[*].url'
+  # 3. Anything link-shaped that mentions a lesson, as a last resort.
+  - regex: '"(?:url|permalink|web_url)"\s*:\s*"(/learn/[^"]{4,200})"'
+
+videos:
+  # Signed CDN URLs in the page state (Learnyst serves HLS for video lessons).
+  - json:
+      path: '**.hls_url'
+    kind: hls
+  - json:
+      path: '**.video_url'
+  - regex: '"(https?://[^"]+\.m3u8[^"]*)"'
+    kind: hls
+  - regex: '"(https?://[^"]+\.mp4[^"]*)"'
+    kind: progressive
