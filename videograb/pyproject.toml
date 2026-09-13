@@ -1,0 +1,16 @@
+[project]
+name = "videograb"
+version = "0.1.0"
+description = "Find and download the videos behind a web page"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "browser-cookie3",
+    "cryptography",
+    "playwright",
+    "pyyaml",
+    "yt-dlp",
+]
+
+[tool.uv]
+package = false

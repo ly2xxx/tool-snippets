@@ -3,3 +3,16 @@ reclaim*.json
 reclaim*.md
 __pycache__/
 *.pyc
+
+# Cookies & session tokens
+*cookies*.txt
+*.cookies.txt
+*storage-state*.json
+wl.json
+
+# Download output directories
+besa_videos/
+downloads/
+
+# Backup files
+*.bak

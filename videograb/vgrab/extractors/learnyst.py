@@ -48,6 +48,8 @@ class Learnyst(Extractor):
     def matches(self, page: Page, ctx: Context) -> bool:
         if not page.is_html:
             return False
+        if "whizlabs.com" in page.url or "whizlabs.com" in page.requested_url:
+            return False
         if COURSE_URL.search(page.url) or LESSON_URL.search(page.url):
             return True
         head = (page.text or "")[:400_000].lower()
