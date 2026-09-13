@@ -20,6 +20,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from .http import Fetcher, absolute
 from .models import DASH, EXTERNAL, HLS, PROGRESSIVE, Video
+from .merger import find_ffmpeg
 
 Progress = Callable[[str, int, Optional[int]], None]
 
@@ -71,6 +72,8 @@ def filename_for(video: Video, template: str = "{index:03d} - {title} [{label}].
 
 
 def have(tool: str) -> bool:
+    if tool == "ffmpeg":
+        return find_ffmpeg("ffmpeg") is not None
     return shutil.which(tool) is not None
 
 
@@ -319,6 +322,9 @@ class Downloader:
         ua = self.fetcher.user_agent
         if ua:
             cmd += ["--user-agent", ua]
+        ffmpeg_bin = find_ffmpeg(self.ffmpeg)
+        if ffmpeg_bin:
+            cmd += ["--ffmpeg-location", ffmpeg_bin]
         ref = video.headers.get("Referer")
         if ref:
             cmd += ["--referer", ref]
