@@ -27,8 +27,21 @@ python repo_sort.py apply repo-plan.txt
 python repo_sort.py apply repo-plan.txt --yes --only aidev
 python repo_sort.py apply repo-plan.txt --yes
 ```
+## Browsing repositories by topic
 
-Then browse a category on GitHub: `https://github.com/search?q=user:ly2xxx+topic:homelab&type=repositories`
+Once applied, browse your repositories for each category on GitHub or via the CLI:
+
+- **`topic:portfolio`** (16 repos) → [View on GitHub](https://github.com/search?q=user%3Aly2xxx+topic%3Aportfolio&type=repositories)
+- **`topic:job-search`** (6 repos) → [View on GitHub](https://github.com/search?q=user%3Aly2xxx+topic%3Ajob-search&type=repositories)
+- **`topic:homelab`** (18 repos) → [View on GitHub](https://github.com/search?q=user%3Aly2xxx+topic%3Ahomelab&type=repositories)
+- **`topic:ai-experiment`** (24 repos) → [View on GitHub](https://github.com/search?q=user%3Aly2xxx+topic%3Aai-experiment&type=repositories)
+- **`topic:learning`** (4 repos) → [View on GitHub](https://github.com/search?q=user%3Aly2xxx+topic%3Alearning&type=repositories)
+- **`topic:personal`** (3 repos) → [View on GitHub](https://github.com/search?q=user%3Aly2xxx+topic%3Apersonal&type=repositories)
+
+You can also filter by topic using `gh`:
+```powershell
+gh repo list ly2xxx --topic portfolio
+```
 
 ## The page
 
