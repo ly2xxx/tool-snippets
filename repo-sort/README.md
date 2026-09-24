@@ -12,7 +12,7 @@ Needs Python 3.8+ and the [GitHub CLI](https://cli.github.com) signed in with `g
 ## Quick start
 
 ```powershell
-cd H:\code\yl\tool-snippets\repo-sort
+cd repo-sort
 
 # 1. Export your repositories (names, descriptions, current topics)
 python repo_sort.py snapshot ly2xxx -o repos.json
