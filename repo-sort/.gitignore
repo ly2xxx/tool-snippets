@@ -1,0 +1,3 @@
+# Your real repository list and plan name private repositories. Keep them out of git.
+repos*.json
+repo-plan*.txt
