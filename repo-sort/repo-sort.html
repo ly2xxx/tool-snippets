@@ -1,0 +1,769 @@
+<title>Repo Sort</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap">
+<style>
+:root{
+  --paper:#faf9f6; --surface:#ffffff; --sunk:#f3f2ed; --ink:#1a1d1b; --muted:#6d726c; --faint:#9aa09a;
+  --line:#e4e2db; --line-soft:#efede7;
+  --accent:#0d6b57; --accent-ink:#ffffff; --accent-soft:#e2efea;
+  --amber:#a8701c; --amber-soft:#f6ecd9; --rust:#96442a; --danger:#a3321f;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --cond:"IBM Plex Sans Condensed","IBM Plex Sans",system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --paper:#121412; --surface:#1a1e1c; --sunk:#161a18; --ink:#e9eae6; --muted:#9aa29c; --faint:#6f7772;
+    --line:#2b312e; --line-soft:#222825;
+    --accent:#52c3a2; --accent-ink:#0d1a15; --accent-soft:#1c2f29;
+    --amber:#d2a14e; --amber-soft:#2e2615; --rust:#d1785a; --danger:#e07a64;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#121412; --surface:#1a1e1c; --sunk:#161a18; --ink:#e9eae6; --muted:#9aa29c; --faint:#6f7772;
+  --line:#2b312e; --line-soft:#222825;
+  --accent:#52c3a2; --accent-ink:#0d1a15; --accent-soft:#1c2f29;
+  --amber:#d2a14e; --amber-soft:#2e2615; --rust:#d1785a; --danger:#e07a64;
+}
+
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased;}
+body.has-bar{padding-bottom:88px;}
+.wrap{max-width:920px;margin:0 auto;padding-inline:20px;padding-block:32px 64px;}
+button,select,input,textarea{font:inherit;color:inherit;}
+button{cursor:pointer;}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+code{font-family:var(--mono);font-size:.92em;background:var(--sunk);border:1px solid var(--line);border-radius:2px;padding:0 4px;}
+
+/* header */
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 10px;}
+h1{font-family:var(--cond);font-weight:700;font-size:clamp(32px,6vw,46px);line-height:1.05;margin:0;letter-spacing:-.015em;}
+.lede{margin:10px 0 0;color:var(--muted);max-width:60ch;font-size:15px;}
+.meter{margin-top:22px;display:grid;gap:8px;}
+.meter-bar{height:6px;background:var(--line-soft);border-radius:3px;overflow:hidden;}
+.meter-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s ease;}
+.meter-text{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;font-size:13px;color:var(--muted);}
+.meter-text b{font-family:var(--cond);font-size:20px;color:var(--ink);font-variant-numeric:tabular-nums;}
+.meter-text .arch b{color:var(--amber);}
+.save{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--faint);}
+.save.bad{color:var(--danger);}
+
+/* toolbar */
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:26px 0 8px;}
+#q{flex:1 1 220px;min-width:0;font-family:var(--mono);font-size:13px;padding:8px 11px;border:1px solid var(--line);border-radius:3px;background:var(--surface);}
+.chips{display:flex;flex-wrap:wrap;gap:6px;}
+.chip,.btn{font-family:var(--mono);font-size:11.5px;padding:6px 11px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+.btn{border-radius:3px;color:var(--ink);}
+.btn[aria-expanded="true"]{border-color:var(--accent);color:var(--accent);}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:500;}
+.tools{display:flex;gap:6px;margin-left:auto;}
+
+/* panels */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:16px;margin:10px 0 4px;}
+.panel h2{margin:0 0 4px;}
+.panel p{margin:0 0 12px;color:var(--muted);font-size:13.5px;max-width:64ch;}
+.cat-edit{display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--line-soft);}
+.cat-edit input{min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:3px;background:var(--paper);font-size:13px;}
+.cat-edit input.topic{font-family:var(--mono);}
+.cat-edit input[aria-invalid="true"]{border-color:var(--danger);}
+.cat-edit .n{font-family:var(--mono);font-size:11px;color:var(--faint);min-width:28px;text-align:right;}
+.cat-edit .del{border:0;background:none;color:var(--muted);font-size:12px;padding:4px 6px;}
+.cat-edit .del.confirm{color:var(--danger);font-weight:600;}
+.cat-edit .fixed{font-size:12px;color:var(--faint);font-style:italic;}
+.hint{font-size:12px;color:var(--danger);min-height:1em;margin-top:6px;}
+#import-text{width:100%;min-height:120px;box-sizing:border-box;font-family:var(--mono);font-size:12px;padding:10px;border:1px solid var(--line);border-radius:3px;background:var(--paper);resize:vertical;}
+.row-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;}
+.status{font-size:12.5px;color:var(--muted);}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
+
+/* board */
+h2{font-family:var(--cond);font-weight:600;font-size:13px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin:0;}
+#board{display:grid;gap:14px;margin-top:18px;}
+.cat{background:var(--surface);border:1px solid var(--line);border-radius:3px;}
+.cat.unsorted.has{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+.cat.drop{border-color:var(--accent);background:var(--accent-soft);}
+.cat-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px;padding:11px 14px;border-bottom:1px solid var(--line-soft);}
+.cat-h .count{font-family:var(--cond);font-weight:700;font-size:17px;color:var(--ink);font-variant-numeric:tabular-nums;}
+.cat-h .topic{font-family:var(--mono);font-size:11px;color:var(--accent);background:var(--accent-soft);padding:1px 6px;border-radius:2px;}
+.cat-h .topic.none{color:var(--faint);background:var(--sunk);}
+.cat-h .all{margin-left:auto;border:0;background:none;font-family:var(--mono);font-size:11px;color:var(--muted);padding:2px 4px;}
+.cat-h .all:hover{color:var(--accent);}
+.cat .empty{font-size:12.5px;color:var(--faint);padding:10px 14px;margin:0;}
+.rows{list-style:none;margin:0;padding:0;}
+
+.row{display:grid;grid-template-columns:22px 1fr auto auto 22px;gap:0 10px;align-items:center;padding:7px 14px;border-top:1px solid var(--line-soft);cursor:pointer;-webkit-user-select:none;user-select:none;}
+.row:first-child{border-top:0;}
+.row:hover{background:var(--sunk);}
+.row.sel{background:var(--accent-soft);}
+.pick{width:22px;height:22px;display:grid;place-items:center;border:0;background:none;padding:0;}
+.pick .box{width:14px;height:14px;border:1.5px solid var(--faint);border-radius:3px;display:grid;place-items:center;}
+.row.sel .pick .box{background:var(--accent);border-color:var(--accent);}
+.row.sel .pick .box::after{content:"";width:7px;height:4px;border-left:2px solid var(--accent-ink);border-bottom:2px solid var(--accent-ink);transform:rotate(-45deg) translate(1px,-1px);}
+.main{min-width:0;}
+.name{font-family:var(--mono);font-size:13px;word-break:break-all;}
+.name .own{color:var(--faint);}
+.tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:1px 5px;border-radius:2px;border:1px solid var(--line);color:var(--muted);margin-left:6px;white-space:nowrap;vertical-align:1px;}
+.tag.priv{border-color:var(--amber);color:var(--amber);}
+.desc{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.age{font-family:var(--mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:40px;text-align:right;white-space:nowrap;}
+.age.old{color:var(--rust);}
+.arch{font-family:var(--mono);font-size:10.5px;padding:3px 8px;border:1px solid var(--line);border-radius:3px;background:var(--surface);color:var(--muted);white-space:nowrap;}
+.arch[aria-pressed="true"]{background:var(--amber-soft);border-color:var(--amber);color:var(--amber);}
+.row.marked .name{text-decoration:line-through;text-decoration-color:var(--amber);text-decoration-thickness:1.5px;}
+.gh{color:var(--faint);text-decoration:none;font-size:14px;text-align:center;}
+.gh:hover{color:var(--accent);}
+
+/* plan */
+.plan{margin-top:40px;}
+.steps{margin:10px 0 14px;padding-left:20px;color:var(--muted);font-size:13.5px;display:grid;gap:6px;max-width:70ch;}
+.steps code{color:var(--ink);word-break:break-all;}
+.plan-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;}
+.plan-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:3px;background:var(--surface);}
+#plan{display:block;width:100%;min-width:560px;box-sizing:border-box;min-height:260px;border:0;background:transparent;font-family:var(--mono);font-size:12px;line-height:1.55;padding:12px 14px;resize:vertical;white-space:pre;}
+
+/* empty state */
+.emptystate{background:var(--surface);border:1px dashed var(--line);border-radius:3px;padding:22px;margin-top:18px;}
+.emptystate h2{margin-bottom:8px;}
+.emptystate p{margin:0 0 8px;color:var(--muted);font-size:14px;max-width:62ch;}
+
+/* selection bar */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -6px 18px rgba(0,0,0,.08);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));}
+.bar-in{max-width:920px;margin:0 auto;display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.bar-count{font-family:var(--cond);font-weight:700;font-size:16px;margin-right:4px;}
+#bar-move{font-family:var(--mono);font-size:12px;padding:6px 8px;border:1px solid var(--accent);border-radius:3px;background:var(--accent-soft);color:var(--accent);max-width:100%;}
+
+@media (max-width:600px){
+  .row{grid-template-columns:22px 1fr auto 22px;row-gap:4px;}
+  .row .age{grid-column:2;grid-row:2;text-align:left;}
+  .row .arch{grid-column:3;grid-row:1;}
+  .row .gh{grid-column:4;grid-row:1;}
+  .cat-edit{grid-template-columns:1fr 1fr;}
+  .tools{margin-left:0;}
+  body.has-bar{padding-bottom:132px;}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Repository housekeeping</p>
+    <h1>Repo Sort</h1>
+    <p class="lede">Put every repository in one category. Each category becomes a GitHub topic, and anything you mark gets archived. When the Unsorted pile is empty, copy the plan at the bottom and run it with <code>repo_sort.py</code>.</p>
+    <div class="meter" aria-live="polite">
+      <div class="meter-bar"><i id="meter-fill"></i></div>
+      <div class="meter-text">
+        <span><b id="m-sorted">0</b> of <b id="m-total">0</b> sorted</span>
+        <span class="arch"><b id="m-archive">0</b> to archive</span>
+        <span id="save-state" class="save">loading…</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <input id="q" type="search" placeholder="Filter by name or description" autocomplete="off" aria-label="Filter repositories">
+    <div class="chips" role="group" aria-label="Show">
+      <button class="chip" id="f-all" data-f="all" aria-pressed="true">all</button>
+      <button class="chip" id="f-unsorted" data-f="unsorted" aria-pressed="false">unsorted</button>
+      <button class="chip" id="f-stale" data-f="stale" aria-pressed="false">&gt;1 year old</button>
+      <button class="chip" id="f-archive" data-f="archive" aria-pressed="false">to archive</button>
+      <button class="chip" id="f-private" data-f="private" aria-pressed="false">private</button>
+    </div>
+    <div class="tools">
+      <button class="btn" id="btn-cats" aria-expanded="false" aria-controls="panel-cats">Categories</button>
+      <button class="btn" id="btn-import" aria-expanded="false" aria-controls="panel-import">Import</button>
+    </div>
+  </div>
+
+  <section class="panel" id="panel-cats" hidden>
+    <h2>Categories</h2>
+    <p>The topic is what gets added on GitHub. Topics are lowercase letters, digits and hyphens. Renaming a topic removes the old one from its repositories the next time you run the plan.</p>
+    <div id="cat-list"></div>
+    <div class="row-actions"><button class="btn" id="btn-add-cat">Add category</button></div>
+    <div class="hint" id="cat-hint"></div>
+  </section>
+
+  <section class="panel" id="panel-import" hidden>
+    <h2>Import</h2>
+    <p>Paste or choose the file from <code>python repo_sort.py snapshot OWNER -o repos.json</code> to load or refresh your repositories with their descriptions and current topics. You can also paste a plan you copied earlier to restore it. Categories you already assigned are kept.</p>
+    <textarea id="import-text" spellcheck="false" aria-label="Import data" placeholder='{"owner": "…", "repos": [ … ]}   or a copied plan'></textarea>
+    <div class="row-actions">
+      <button class="btn primary" id="btn-do-import">Import</button>
+      <button class="btn" id="btn-file">Choose file…</button>
+      <input id="import-file" class="vh" type="file" accept=".json,.txt,application/json,text/plain" tabindex="-1" aria-hidden="true">
+      <span class="status" id="import-status"></span>
+    </div>
+  </section>
+
+  <div class="emptystate" id="empty" hidden>
+    <h2>No repositories yet</h2>
+    <p>On a computer with the GitHub CLI, run <code>python repo_sort.py snapshot YOUR-USER -o repos.json</code>, then open <b>Import</b> above and choose that file.</p>
+  </div>
+
+  <div id="board"></div>
+
+  <section class="plan" id="plan-sec">
+    <h2>Plan</h2>
+    <ol class="steps">
+      <li>Copy the plan and save it as <code>repo-plan.txt</code> next to <code>repo_sort.py</code>.</li>
+      <li>See what would change, with nothing touched: <code>python repo_sort.py apply repo-plan.txt</code></li>
+      <li>Apply it: <code>python repo_sort.py apply repo-plan.txt --yes</code>. Running it again is safe; finished repositories are skipped.</li>
+      <li>Afterwards, run <code id="snap-cmd">python repo_sort.py snapshot OWNER -o repos.json</code> and import it here to confirm GitHub matches.</li>
+    </ol>
+    <div class="plan-actions">
+      <button class="btn primary" id="btn-copy">Copy plan</button>
+      <button class="btn" id="btn-save" hidden>Save as file</button>
+      <span class="status" id="copy-state"></span>
+    </div>
+    <div class="plan-wrap"><textarea id="plan" readonly spellcheck="false" aria-label="Plan file"></textarea></div>
+  </section>
+</div>
+
+<div class="bar" id="bar" hidden>
+  <div class="bar-in">
+    <span class="bar-count" id="bar-count">0 selected</span>
+    <select id="bar-move" aria-label="Move selected repositories to"></select>
+    <button class="btn" id="bar-archive">Mark archive</button>
+    <button class="btn" id="bar-keep">Unmark</button>
+    <button class="btn" id="bar-clear">Clear</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var KEY = "repo-sort-v1";
+  var TOPIC_RE = /^[a-z0-9][a-z0-9-]{0,49}$/;
+  var SPECIAL = {
+    unsorted: {id:"unsorted", label:"Unsorted", topic:""},
+    none: {id:"none", label:"No tag", topic:""}
+  };
+  var STARTER = [
+    ["portfolio","Portfolio"],["job-search","Job search"],["homelab","Home lab"],
+    ["ai-experiment","AI experiments"],["learning","Learning"],["personal","Personal"]
+  ];
+
+  var $ = function(id){ return document.getElementById(id); };
+  var state = blankState();
+  var selected = new Set();
+  var filter = "all";
+  var ref = null, readOnly = false;
+  var writing = false, dirty = false, failed = false, saveTimer = null;
+  var loaded = false;  // nothing is saved until the stored plan has arrived, so it can't be overwritten
+
+  function blankState(){
+    return {v:1, owner:"", updatedAt:"", retired:[],
+      categories: STARTER.map(function(c){ return {id:"c_"+c[0], label:c[1], topic:c[0]}; }),
+      repos: []};
+  }
+  function normaliseState(s){
+    s = s || {};
+    var cats = Array.isArray(s.categories) ? s.categories.filter(function(c){ return c && c.id && c.id !== "unsorted" && c.id !== "none"; }) : [];
+    var ids = new Set(cats.map(function(c){ return c.id; }));
+    var repos = Array.isArray(s.repos) ? s.repos.filter(function(r){ return r && typeof r.n === "string"; }) : [];
+    repos.forEach(function(r){
+      if (r.c !== "unsorted" && r.c !== "none" && !ids.has(r.c)) r.c = "unsorted";
+      if (["keep","archive","unarchive"].indexOf(r.x) < 0) r.x = "keep";
+      r.t = Array.isArray(r.t) ? r.t : [];
+    });
+    return {v:1, owner:s.owner||"", updatedAt:s.updatedAt||"", retired:Array.isArray(s.retired)?s.retired:[], categories:cats, repos:repos};
+  }
+  function allCats(){ return [SPECIAL.unsorted].concat(state.categories, [SPECIAL.none]); }
+  function catById(id){ return allCats().find(function(c){ return c.id === id; }) || SPECIAL.unsorted; }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+  function slug(s){ return String(s).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,50); }
+  function ageDays(d){ if(!d) return null; var t = Date.parse(d+"T00:00:00Z"); return isNaN(t) ? null : Math.max(0, Math.floor((Date.now()-t)/864e5)); }
+  function ago(a){ if(a===null) return "–"; if(a<1) return "today"; if(a<30) return a+"d"; if(a<365) return Math.round(a/30)+"mo"; return (Math.round(a/36.5)/10)+"y"; }
+  function topicNames(v){
+    if(!v) return [];
+    if(!Array.isArray(v) && v.nodes) v = v.nodes;
+    if(!Array.isArray(v)) return [];
+    return v.map(function(t){ return typeof t === "string" ? t : (t && (t.name || (t.topic && t.topic.name))) || ""; }).filter(Boolean);
+  }
+
+  /* ------------------------------------------------------------ saving */
+
+  function setSave(kind, detail){
+    var el = $("save-state");
+    var text = {loading:"loading…", local:"saved in this browser", unsaved:"unsaved changes", saving:"saving…",
+      saved:"saved", readonly:"view only: changes aren't saved", error:"couldn't save: " + (detail||"try again"),
+      offline:"live updates paused"}[kind] || "";
+    el.textContent = text;
+    el.className = "save" + (kind === "error" || kind === "readonly" ? " bad" : "");
+  }
+  function commit(){
+    if(!loaded){ render(); return; }
+    state.updatedAt = new Date().toISOString();
+    render();
+    dirty = true; failed = false;
+    setSave("unsaved");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flush, 600);
+  }
+  function wait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  async function flush(){
+    if(!dirty || writing) return;
+    if(!ref){
+      try { localStorage.setItem(KEY, JSON.stringify(state)); setSave("local"); } catch(e){ setSave("error", "this browser won't store it; copy the plan"); }
+      dirty = false; return;
+    }
+    if(readOnly){ dirty = false; return; }
+    writing = true; dirty = false; setSave("saving");
+    var body = JSON.parse(JSON.stringify(state));
+    try {
+      try { await ref.set(body); }
+      catch(e){ if(e && e.code === "unavailable"){ await wait(400 + Math.random()*800); await ref.set(body); } else throw e; }
+      setSave("saved");
+    } catch(e){
+      if(e && e.code === "invalid_argument"){ readOnly = true; setSave("readonly"); }
+      else { dirty = true; failed = true; setSave("error", e && e.code === "quota_exceeded" ? "storage is full" : "try again"); }
+    }
+    writing = false;
+    if(dirty && !failed && !readOnly) flush();
+  }
+
+  /* ------------------------------------------------------------ plan text */
+
+  function planText(){
+    var cats = state.categories.filter(function(c){ return TOPIC_RE.test(c.topic); });
+    var topics = cats.map(function(c){ return c.topic; });
+    var retired = state.retired.filter(function(t){ return topics.indexOf(t) < 0 && TOPIC_RE.test(t); });
+    var out = [
+      "# repo-sort plan v1, " + new Date().toISOString().slice(0,16).replace("T"," ") + " UTC",
+      "# Columns: repository, category topic (- = no category topic), action (keep | archive | unarchive).",
+      "# Dry run first:  python repo_sort.py apply repo-plan.txt",
+      "categories: " + topics.join(" ")
+    ];
+    if(retired.length) out.push("retire: " + retired.join(" "));
+    var w = Math.max.apply(null, state.repos.map(function(r){ return r.n.length; }).concat([12])) + 2;
+    var tw = Math.max.apply(null, topics.map(function(t){ return t.length; }).concat([1])) + 2;
+    function pad(s, n){ s = String(s); return s + " ".repeat(Math.max(1, n - s.length)); }
+    state.categories.concat([SPECIAL.none, SPECIAL.unsorted]).forEach(function(c){
+      var group = state.repos.filter(function(r){ return r.c === c.id; }).sort(function(a,b){ return a.n.localeCompare(b.n); });
+      if(!group.length) return;
+      var topic = c.id === "none" || c.id === "unsorted" || !TOPIC_RE.test(c.topic) ? "-" : c.topic;
+      out.push("");
+      out.push("# " + c.label + " (" + group.length + ")" + (c.id === "unsorted" ? ": not decided yet, so no topic is added" : ""));
+      group.forEach(function(r){
+        out.push(pad(r.n, w) + pad(topic, tw) + r.x + (c.id === "unsorted" ? "  # unsorted" : ""));
+      });
+    });
+    return out.join("\n") + "\n";
+  }
+
+  /* ------------------------------------------------------------ import */
+
+  function normRepo(r){
+    if(!r || typeof r !== "object") return null;
+    var n = r.name && String(r.name).indexOf("/") > 0 ? r.name : (r.nameWithOwner || r.full_name);
+    if(!n || String(n).indexOf("/") < 1) return null;
+    var fork = r.fork !== undefined ? r.fork : r.isFork;
+    var arch = r.archived !== undefined ? r.archived : r.isArchived;
+    return {n:String(n), v:String(r.visibility||"unknown").toLowerCase(), f:!!fork, ar:!!arch,
+      d:String(r.pushed||r.pushedAt||r.pushed_at||"").slice(0,10), desc:r.description||"",
+      t:topicNames(r.topics || r.repositoryTopics)};
+  }
+  function parsePlan(text){
+    var cats = [], retired = [], entries = [], errors = [];
+    text.split(/\r?\n/).forEach(function(raw, i){
+      var unsorted = /#\s*unsorted\b/i.test(raw);
+      var line = raw.split("#")[0].trim();
+      if(!line) return;
+      var m = line.match(/^(categories|retire)\s*:(.*)$/i);
+      if(m){
+        m[2].split(/[\s,]+/).filter(Boolean).forEach(function(t){ (m[1].toLowerCase() === "categories" ? cats : retired).push(t); });
+        return; }
+      var f = line.split(/\s+/);
+      if(f.length < 2 || f.length > 3 || f[0].indexOf("/") < 1){ errors.push("line " + (i+1)); return; }
+      entries.push({n:f[0], topic:f[1] === "-" ? "" : f[1], x:(f[2]||"keep").toLowerCase(), unsorted:unsorted});
+    });
+    if(!entries.length) throw new Error("That doesn't look like repository JSON or a plan.");
+    return {cats:cats, retired:retired, entries:entries, errors:errors};
+  }
+  function importText(text){
+    text = text.trim();
+    if(!text) throw new Error("Paste something or choose a file first.");
+    if(text[0] === "{" || text[0] === "["){
+      var data;
+      try { data = JSON.parse(text); } catch(e){ throw new Error("That looks like JSON but doesn't parse: " + e.message); }
+      var list = Array.isArray(data) ? data : (data && Array.isArray(data.repos) ? data.repos : null);
+      if(!list) throw new Error("Expected a list of repositories, or an object with a \"repos\" list.");
+      var repos = list.map(normRepo).filter(Boolean);
+      if(!repos.length) throw new Error("No repositories found in that JSON.");
+      return mergeRepos(repos, (data && data.owner) || "");
+    }
+    return mergePlan(parsePlan(text));
+  }
+  function inferOwner(repos){
+    var count = {};
+    repos.forEach(function(r){ var o = r.n.split("/")[0]; count[o] = (count[o]||0) + 1; });
+    return Object.keys(count).sort(function(a,b){ return count[b]-count[a]; })[0] || "";
+  }
+  function mergeRepos(incoming, owner){
+    var old = new Map(state.repos.map(function(r){ return [r.n.toLowerCase(), r]; }));
+    var byTopic = new Map(state.categories.map(function(c){ return [c.topic, c.id]; }));
+    var added = 0, kept = 0;
+    state.repos = incoming.map(function(r){
+      var prev = old.get(r.n.toLowerCase());
+      if(prev){
+        kept++;
+        var done = (prev.x === "archive" && r.ar) || (prev.x === "unarchive" && !r.ar);
+        return Object.assign(r, {c:prev.c, x: done ? "keep" : prev.x});
+      }
+      added++;
+      var hit = r.t.find(function(t){ return byTopic.has(t); });
+      return Object.assign(r, {c: hit ? byTopic.get(hit) : "unsorted", x:"keep"});
+    });
+    state.owner = owner || inferOwner(state.repos);
+    var gone = old.size - kept;
+    return "Loaded " + state.repos.length + " repositories: " + added + " new, " + kept + " already sorted" +
+      (gone ? ", " + gone + " no longer listed and removed" : "") + ".";
+  }
+  function mergePlan(p){
+    var made = 0;
+    p.cats.forEach(function(t){
+      if(!TOPIC_RE.test(t) || state.categories.some(function(c){ return c.topic === t; })) return;
+      state.categories.push({id:"c_" + t, label: t.replace(/-/g," ").replace(/^./, function(c){ return c.toUpperCase(); }), topic:t});
+      made++;
+    });
+    p.retired.forEach(function(t){ if(TOPIC_RE.test(t) && state.retired.indexOf(t) < 0) state.retired.push(t); });
+    var byTopic = new Map(state.categories.map(function(c){ return [c.topic, c.id]; }));
+    var byName = new Map(state.repos.map(function(r){ return [r.n.toLowerCase(), r]; }));
+    var added = 0;
+    p.entries.forEach(function(e){
+      var r = byName.get(e.n.toLowerCase());
+      if(!r){ r = {n:e.n, v:"unknown", f:false, ar:false, d:"", desc:"", t:[]}; state.repos.push(r); byName.set(e.n.toLowerCase(), r); added++; }
+      if(e.unsorted) r.c = "unsorted";
+      else if(!e.topic) r.c = "none";
+      else {
+        if(!byTopic.has(e.topic) && TOPIC_RE.test(e.topic)){
+          var c = {id:"c_" + e.topic, label:e.topic, topic:e.topic};
+          state.categories.push(c); byTopic.set(e.topic, c.id); made++;
+        }
+        r.c = byTopic.get(e.topic) || "unsorted";
+      }
+      r.x = ["keep","archive","unarchive"].indexOf(e.x) >= 0 ? e.x : "keep";
+    });
+    if(!state.owner) state.owner = inferOwner(state.repos);
+    return "Restored the plan: " + p.entries.length + " repositories" + (added ? " (" + added + " new)" : "") +
+      (made ? ", " + made + " categories added" : "") + (p.errors.length ? ". Skipped unreadable " + p.errors.join(", ") : "") + ".";
+  }
+
+  /* ------------------------------------------------------------ actions */
+
+  function moveTo(names, catId){
+    var n = 0;
+    state.repos.forEach(function(r){ if(names.has(r.n) && r.c !== catId){ r.c = catId; n++; } });
+    return n;
+  }
+  function markArchive(names, on){
+    state.repos.forEach(function(r){
+      if(!names.has(r.n)) return;
+      r.x = on ? (r.ar ? "keep" : "archive") : "keep";
+    });
+  }
+  function toggleArchive(r){
+    if(r.ar) r.x = r.x === "unarchive" ? "keep" : "unarchive";
+    else r.x = r.x === "archive" ? "keep" : "archive";
+  }
+
+  /* ------------------------------------------------------------ render */
+
+  function visible(r, text){
+    if(text && (r.n + " " + (r.desc||"")).toLowerCase().indexOf(text) < 0) return false;
+    switch(filter){
+      case "unsorted": return r.c === "unsorted";
+      case "stale": var a = ageDays(r.d); return a !== null && a > 365;
+      case "archive": return r.x === "archive";
+      case "private": return r.v === "private";
+      default: return true;
+    }
+  }
+  function rowHtml(r){
+    var parts = r.n.split("/");
+    var a = ageDays(r.d);
+    var sel = selected.has(r.n);
+    var marked = r.x === "archive" || r.x === "unarchive";
+    var archLabel = r.ar ? (r.x === "unarchive" ? "Unarchiving" : "Unarchive") : (r.x === "archive" ? "Archiving" : "Archive");
+    return '<li class="row' + (sel ? " sel" : "") + (r.x === "archive" ? " marked" : "") + '" data-n="' + esc(r.n) + '" draggable="true">' +
+      '<button class="pick" aria-pressed="' + sel + '" aria-label="Select ' + esc(r.n) + '"><span class="box"></span></button>' +
+      '<div class="main"><span class="name"><span class="own">' + esc(parts[0]) + '/</span>' + esc(parts.slice(1).join("/")) + '</span>' +
+        (r.v === "private" ? '<span class="tag priv">private</span>' : '') +
+        (r.f ? '<span class="tag">fork</span>' : '') +
+        (r.ar ? '<span class="tag">archived</span>' : '') +
+        (r.desc ? '<div class="desc" title="' + esc(r.desc) + '">' + esc(r.desc) + '</div>' : '') +
+      '</div>' +
+      '<span class="age' + (a !== null && a > 365 ? " old" : "") + '" title="Last pushed ' + esc(r.d || "unknown") + '">' + ago(a) + '</span>' +
+      '<button class="arch" aria-pressed="' + marked + '" title="' + (r.ar ? "Currently archived" : "Archive when the plan runs") + '">' + archLabel + '</button>' +
+      '<a class="gh" href="https://github.com/' + esc(r.n) + '" target="_blank" rel="noopener" aria-label="Open ' + esc(r.n) + ' on GitHub">↗</a>' +
+      '</li>';
+  }
+  function render(){
+    var focusN = null, focusCls = null, act = document.activeElement;
+    if(act && act.closest){ var row = act.closest(".row"); if(row){ focusN = row.dataset.n; focusCls = act.classList[0]; } }
+
+    var names = new Set(state.repos.map(function(r){ return r.n; }));
+    selected.forEach(function(n){ if(!names.has(n)) selected.delete(n); });
+
+    var total = state.repos.length;
+    var unsorted = state.repos.filter(function(r){ return r.c === "unsorted"; }).length;
+    var toArchive = state.repos.filter(function(r){ return r.x === "archive"; }).length;
+    $("m-total").textContent = total;
+    $("m-sorted").textContent = total - unsorted;
+    $("m-archive").textContent = toArchive;
+    $("meter-fill").style.width = total ? ((total - unsorted) / total * 100) + "%" : "0";
+    $("empty").hidden = total > 0 || !loaded;
+    $("board").hidden = total === 0;
+    $("plan-sec").hidden = total === 0;
+
+    var text = $("q").value.trim().toLowerCase();
+    var filtering = !!text || filter !== "all";
+    var html = allCats().map(function(c){
+      var inCat = state.repos.filter(function(r){ return r.c === c.id; });
+      var rows = inCat.filter(function(r){ return visible(r, text); }).sort(function(a,b){ return a.n.localeCompare(b.n); });
+      if(filtering && !rows.length) return "";
+      var topic = c.topic ? '<span class="topic">#' + esc(c.topic) + '</span>' : '<span class="topic none">no topic</span>';
+      return '<section class="cat' + (c.id === "unsorted" ? " unsorted" + (inCat.length ? " has" : "") : "") + '" data-cat="' + esc(c.id) + '">' +
+        '<header class="cat-h"><h2>' + esc(c.label) + '</h2><span class="count">' + inCat.length + '</span>' + topic +
+        (rows.length ? '<button class="all" data-cat="' + esc(c.id) + '">select ' + (filtering ? "shown" : "all") + '</button>' : '') + '</header>' +
+        (rows.length ? '<ol class="rows">' + rows.map(rowHtml).join("") + '</ol>'
+                     : '<p class="empty">' + (c.id === "unsorted" ? "Everything is sorted." : "Drop or move repositories here.") + '</p>') +
+        '</section>';
+    }).join("");
+    $("board").innerHTML = html;
+
+    var opts = '<option value="">Move to…</option>' + allCats().map(function(c){ return '<option value="' + esc(c.id) + '">' + esc(c.label) + '</option>'; }).join("");
+    $("bar-move").innerHTML = opts;
+    $("bar").hidden = selected.size === 0;
+    document.body.classList.toggle("has-bar", selected.size > 0);
+    $("bar-count").textContent = selected.size + " selected";
+
+    $("plan").value = total ? planText() : "";
+    $("snap-cmd").textContent = "python repo_sort.py snapshot " + (state.owner || "OWNER") + " -o repos.json";
+    if(!$("panel-cats").hidden && !$("cat-list").contains(document.activeElement)) renderCats();
+
+    if(focusN){
+      var el = document.querySelector('.row[data-n="' + CSS.escape(focusN) + '"] .' + focusCls);
+      if(el) el.focus();
+    }
+  }
+  function renderCats(){
+    $("cat-list").innerHTML = allCats().map(function(c){
+      var n = state.repos.filter(function(r){ return r.c === c.id; }).length;
+      if(c.id === "unsorted" || c.id === "none"){
+        return '<div class="cat-edit"><input value="' + esc(c.label) + '" disabled aria-label="Category name"><span class="fixed">' +
+          (c.id === "unsorted" ? "not decided yet" : "sorted, no topic") + '</span><span class="n">' + n + '</span><span></span></div>';
+      }
+      return '<div class="cat-edit" data-id="' + esc(c.id) + '">' +
+        '<input class="label" id="lbl-' + esc(c.id) + '" value="' + esc(c.label) + '" aria-label="Category name">' +
+        '<input class="topic" id="tpc-' + esc(c.id) + '" value="' + esc(c.topic) + '" aria-label="GitHub topic" spellcheck="false" autocapitalize="off">' +
+        '<span class="n">' + n + '</span><button class="del">Delete</button></div>';
+    }).join("");
+  }
+
+  /* ------------------------------------------------------------ events */
+
+  $("board").addEventListener("click", function(e){
+    var all = e.target.closest(".all");
+    if(all){
+      var text = $("q").value.trim().toLowerCase();
+      var ids = state.repos.filter(function(r){ return r.c === all.dataset.cat && visible(r, text); }).map(function(r){ return r.n; });
+      var every = ids.every(function(n){ return selected.has(n); });
+      ids.forEach(function(n){ every ? selected.delete(n) : selected.add(n); });
+      render(); return;
+    }
+    var row = e.target.closest(".row");
+    if(!row || e.target.closest(".gh")) return;
+    var r = state.repos.find(function(x){ return x.n === row.dataset.n; });
+    if(!r) return;
+    if(e.target.closest(".arch")){ toggleArchive(r); commit(); return; }
+    selected.has(r.n) ? selected.delete(r.n) : selected.add(r.n);
+    render();
+  });
+
+  /* desktop drag and drop; phones use the selection bar */
+  var dragNames = null;
+  $("board").addEventListener("dragstart", function(e){
+    var row = e.target.closest && e.target.closest(".row");
+    if(!row) return;
+    dragNames = selected.has(row.dataset.n) ? new Set(selected) : new Set([row.dataset.n]);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", Array.from(dragNames).join("\n"));
+  });
+  $("board").addEventListener("dragover", function(e){
+    var cat = dragNames && e.target.closest(".cat");
+    if(!cat) return;
+    e.preventDefault();
+    document.querySelectorAll(".cat.drop").forEach(function(c){ if(c !== cat) c.classList.remove("drop"); });
+    cat.classList.add("drop");
+  });
+  $("board").addEventListener("dragleave", function(e){
+    var cat = e.target.closest(".cat");
+    if(cat && !cat.contains(e.relatedTarget)) cat.classList.remove("drop");
+  });
+  $("board").addEventListener("drop", function(e){
+    var cat = dragNames && e.target.closest(".cat");
+    if(!cat) return;
+    e.preventDefault();
+    var n = moveTo(dragNames, cat.dataset.cat);
+    dragNames.forEach(function(x){ selected.delete(x); });
+    dragNames = null;
+    n ? commit() : render();
+  });
+  document.addEventListener("dragend", function(){ dragNames = null; document.querySelectorAll(".cat.drop").forEach(function(c){ c.classList.remove("drop"); }); });
+
+  $("bar-move").addEventListener("change", function(){
+    if(!this.value) return;
+    var n = moveTo(selected, this.value);
+    selected.clear();
+    n ? commit() : render();
+  });
+  $("bar-archive").addEventListener("click", function(){ markArchive(selected, true); selected.clear(); commit(); });
+  $("bar-keep").addEventListener("click", function(){ markArchive(selected, false); selected.clear(); commit(); });
+  $("bar-clear").addEventListener("click", function(){ selected.clear(); render(); });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape" && selected.size){ selected.clear(); render(); } });
+
+  $("q").addEventListener("input", render);
+  document.querySelectorAll(".chip").forEach(function(c){
+    c.addEventListener("click", function(){
+      filter = c.dataset.f;
+      document.querySelectorAll(".chip").forEach(function(o){ o.setAttribute("aria-pressed", String(o === c)); });
+      render();
+    });
+  });
+
+  function togglePanel(btn, panel){
+    var open = panel.hidden;
+    panel.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+    if(open && panel.id === "panel-cats") renderCats();
+  }
+  $("btn-cats").addEventListener("click", function(){ togglePanel(this, $("panel-cats")); });
+  $("btn-import").addEventListener("click", function(){ togglePanel(this, $("panel-import")); });
+
+  /* categories panel */
+  var labelTimer = null;
+  $("cat-list").addEventListener("input", function(e){
+    var box = e.target.closest(".cat-edit");
+    var c = box && state.categories.find(function(x){ return x.id === box.dataset.id; });
+    if(!c) return;
+    if(e.target.classList.contains("label")){
+      c.label = e.target.value.trim() || c.label;
+      clearTimeout(labelTimer);
+      labelTimer = setTimeout(commit, 400);
+      return;
+    }
+    var t = e.target.value.trim();
+    var clash = state.categories.some(function(x){ return x !== c && x.topic === t; });
+    var ok = TOPIC_RE.test(t) && !clash;
+    e.target.setAttribute("aria-invalid", String(!ok));
+    $("cat-hint").textContent = ok ? "" : (clash ? "Another category already uses #" + t + "." : "Use lowercase letters, digits and hyphens, starting with a letter or digit.");
+    if(!ok || t === c.topic) return;
+    if(c.topic && state.retired.indexOf(c.topic) < 0) state.retired.push(c.topic);
+    state.retired = state.retired.filter(function(x){ return x !== t; });
+    c.topic = t;
+    clearTimeout(labelTimer);
+    labelTimer = setTimeout(commit, 400);
+  });
+  $("cat-list").addEventListener("click", function(e){
+    var del = e.target.closest(".del");
+    if(!del) return;
+    if(!del.classList.contains("confirm")){
+      del.classList.add("confirm"); del.textContent = "Delete?";
+      setTimeout(function(){ if(del.isConnected){ del.classList.remove("confirm"); del.textContent = "Delete"; } }, 3000);
+      return;
+    }
+    var id = del.closest(".cat-edit").dataset.id;
+    var c = state.categories.find(function(x){ return x.id === id; });
+    if(c && c.topic && state.retired.indexOf(c.topic) < 0) state.retired.push(c.topic);
+    state.categories = state.categories.filter(function(x){ return x.id !== id; });
+    state.repos.forEach(function(r){ if(r.c === id) r.c = "unsorted"; });
+    commit(); renderCats();
+  });
+  $("btn-add-cat").addEventListener("click", function(){
+    var i = 1, t = "new-category";
+    while(state.categories.some(function(c){ return c.topic === t; })) t = "new-category-" + (++i);
+    var c = {id:"c_" + Date.now().toString(36), label:"New category", topic:t};
+    state.categories.push(c);
+    commit(); renderCats();
+    var el = $("lbl-" + c.id); if(el){ el.focus(); el.select(); }
+  });
+
+  /* import panel */
+  function runImport(text){
+    if(!loaded){ $("import-status").textContent = "Still loading your saved plan. Try again in a moment."; return; }
+    try {
+      var msg = importText(text);
+      $("import-status").textContent = msg;
+      $("import-text").value = "";
+      commit();
+    } catch(e){ $("import-status").textContent = e.message; }
+  }
+  $("btn-do-import").addEventListener("click", function(){ runImport($("import-text").value); });
+  $("btn-file").addEventListener("click", function(){ $("import-file").click(); });
+  $("import-file").addEventListener("change", function(){
+    var f = this.files && this.files[0];
+    if(!f) return;
+    var reader = new FileReader();
+    reader.onload = function(){ runImport(String(reader.result || "")); };
+    reader.onerror = function(){ $("import-status").textContent = "Couldn't read that file."; };
+    reader.readAsText(f);
+    this.value = "";
+  });
+
+  /* plan panel */
+  function flash(msg){ var el = $("copy-state"); el.textContent = msg; clearTimeout(flash.t); flash.t = setTimeout(function(){ el.textContent = ""; }, 4000); }
+  $("btn-copy").addEventListener("click", function(){
+    var txt = $("plan").value;
+    function fallback(){ var p = $("plan"); p.focus(); p.select(); flash("Selected. Copy it with Ctrl+C, or from your phone's menu."); }
+    try {
+      var p = navigator.clipboard && navigator.clipboard.writeText(txt);
+      if(p) p.then(function(){ flash("Copied. Save it as repo-plan.txt."); }, fallback); else fallback();
+    } catch(e){ fallback(); }
+  });
+
+  /* ------------------------------------------------------------ start */
+
+  function startLocal(){
+    ref = null; loaded = true;
+    try { var raw = localStorage.getItem(KEY); if(raw) state = normaliseState(JSON.parse(raw)); } catch(e){}
+    if(!state.categories.length && !state.repos.length) state = blankState();
+    setSave(state.repos.length ? "local" : "loading");
+    if(!state.repos.length) $("save-state").textContent = "";
+    render();
+  }
+  function startShared(db){
+    ref = db.doc("plan/current");
+    var first = true;
+    ref.onSnapshot(function(snap){
+      loaded = true;
+      if(!snap.exists){
+        if(first){ state = blankState(); setSave("saved"); render(); }
+        first = false; return;
+      }
+      if(writing || dirty) return;
+      var d = snap.data();
+      if(!first && d.updatedAt && d.updatedAt === state.updatedAt) return;
+      first = false;
+      state = normaliseState(JSON.parse(JSON.stringify(d)));
+      if(!readOnly) setSave("saved");
+      render();
+    }, function(){ setSave("offline"); });
+  }
+
+  render();
+  if(window.claude && typeof window.claude.use === "function"){
+    window.claude.use("db").then(function(db){ db ? startShared(db) : startLocal(); }, startLocal);
+    window.claude.use("downloads").then(function(dl){
+      if(!dl) return;
+      var btn = $("btn-save"); btn.hidden = false;
+      btn.addEventListener("click", async function(){
+        try { await dl.save({filename:"repo-plan.txt", data:$("plan").value}); flash("Saved repo-plan.txt."); }
+        catch(e){ flash(e && e.code === "declined" ? "Not saved." : (e && e.code === "rate_limited" ? "A save prompt is already open." : "Couldn't save the file here; use Copy instead.")); }
+      });
+    }, function(){});
+  } else {
+    startLocal();
+  }
+})();
+</script>
